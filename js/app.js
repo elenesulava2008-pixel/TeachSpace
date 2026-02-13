@@ -1,9 +1,10 @@
 // --------------------
-// SUPABASE CONFIG
+// supabaseClient CONFIG
 // --------------------
 const SUPABASE_URL = "https://hsrwgfzsqpaldbuevokm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzcndnZnpzcXBhbGRidWV2b2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNTQwODcsImV4cCI6MjA4NTkzMDA4N30.zP-LsXIz3mEzipmAU9pV6RcmIQM2SU5AkLWIqgn3Xms";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClientClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 
 // --------------------
 // TRANSLATIONS
@@ -157,7 +158,7 @@ function studentNameById(id) {
 // AUTH + BOOTSTRAP
 // --------------------
 async function refreshAuthUI() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await supabaseClientClient.auth.getSession();
 
   const authScreen = document.getElementById("authScreen");
   const appRoot = document.getElementById("appRoot");
@@ -180,7 +181,7 @@ async function login() {
   const password = document.getElementById("authPassword").value;
   const msg = document.getElementById("authMsg");
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await supabaseClientClient.auth.signInWithPassword({ email, password });
   msg.textContent = error ? error.message : "";
 }
 
@@ -189,27 +190,27 @@ async function signup() {
   const password = document.getElementById("authPassword").value;
   const msg = document.getElementById("authMsg");
 
-  const { error } = await supabase.auth.signUp({ email, password });
+  const { error } = await supabaseClientClient.auth.signUp({ email, password });
   msg.textContent = error ? error.message : "Check your email to confirm (if enabled).";
 }
 
 async function logout() {
-  await supabase.auth.signOut();
+  await supabaseClientClient.auth.signOut();
 }
 
 // --------------------
 // DB LOAD
 // --------------------
 async function loadAllData() {
-  const { data: s, error: e1 } = await supabase.from("students").select("*").order("created_at");
+  const { data: s, error: e1 } = await supabaseClientClient.from("students").select("*").order("created_at");
   if (e1) throw e1;
   students = s ?? [];
 
-  const { data: l, error: e2 } = await supabase.from("lessons").select("*").order("time");
+  const { data: l, error: e2 } = await supabaseClientClient.from("lessons").select("*").order("time");
   if (e2) throw e2;
   lessons = l ?? [];
 
-  const { data: tsk, error: e3 } = await supabase.from("tasks").select("*").order("due_date");
+  const { data: tsk, error: e3 } = await supabaseClientClient.from("tasks").select("*").order("due_date");
   if (e3) throw e3;
   tasks = tsk ?? [];
 }
@@ -218,9 +219,9 @@ async function loadAllData() {
 // DB MUTATIONS
 // --------------------
 async function addStudentDB(name) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabaseClientClient.auth.getUser();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClientClient
     .from("students")
     .insert([{ user_id: user.id, name }])
     .select()
@@ -232,7 +233,7 @@ async function addStudentDB(name) {
 
 async function deleteStudentDB(studentId) {
   // cascades to tasks/lessons via FK on delete cascade
-  const { error } = await supabase.from("students").delete().eq("id", studentId);
+  const { error } = await supabaseClientClient.from("students").delete().eq("id", studentId);
   if (error) throw error;
 
   students = students.filter(s => s.id !== studentId);
@@ -241,9 +242,9 @@ async function deleteStudentDB(studentId) {
 }
 
 async function addLessonDB(studentId, dayOfWeek, time) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabaseClientClient.auth.getUser();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClientClient
     .from("lessons")
     .insert([{ user_id: user.id, student_id: studentId, day_of_week: dayOfWeek, time }])
     .select()
@@ -254,9 +255,9 @@ async function addLessonDB(studentId, dayOfWeek, time) {
 }
 
 async function addTaskDB(studentId, text, dueDate) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabaseClient.auth.getUser();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("tasks")
     .insert([{ user_id: user.id, student_id: studentId, text, due_date: dueDate, submitted: false }])
     .select()
@@ -272,7 +273,7 @@ async function toggleTaskSubmittedDB(taskId) {
 
   const newValue = !tasks[idx].submitted;
 
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("tasks")
     .update({ submitted: newValue })
     .eq("id", taskId);
@@ -621,7 +622,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // auth state changes
-  supabase.auth.onAuthStateChange(() => refreshAuthUI());
+  supabaseClient.auth.onAuthStateChange(() => refreshAuthUI());
   refreshAuthUI();
 
   // default language

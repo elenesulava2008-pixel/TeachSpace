@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Student Dashboard</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div id="authScreen" style="max-width:420px;margin:40px auto;display:none;">
+  <div class="card">
+    <h2 style="margin-top:0;">Teacher Login</h2>
+
+    <label class="form-label">Email</label>
+    <input class="form-input" id="authEmail" type="email" placeholder="you@example.com">
+
+    <label class="form-label">Password</label>
+    <input class="form-input" id="authPassword" type="password" placeholder="••••••••">
+
+    <div style="display:flex; gap:12px; margin-top:10px;">
+      <button class="btn-primary" id="loginBtn" style="flex:1;">Log In</button>
+      <button class="btn-secondary" id="signupBtn" style="flex:1;">Sign Up</button>
+    </div>
+
+    <p id="authMsg" style="margin-top:12px;"></p>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="appRoot" style="display:none;">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h2 class="sidebar-title" data-i18n="nav">Navigation</h2>
+
+    <button class="nav-item active" data-tab="calendar" data-i18n="calendar">📅 Calendar</button>
+    <button class="nav-item" data-tab="add-student" data-i18n="addStudent">👤 Add Student</button>
+    <button class="nav-item" data-tab="add-homework" data-i18n="addHomework">📝 Add Homework</button>
+    <button class="nav-item" data-tab="students" data-i18n="students">👥 Students</button>
+    <button class="nav-item" data-tab="schedule" data-i18n="schedule">📚 Schedule</button>
+  </aside>
+
+  <main class="content">
+    <!-- Language + Logout -->
+    <div class="language-switch">
+      <button class="lang-btn" data-lang="en">EN</button>
+      <button class="lang-btn" data-lang="de">DE</button>
+      <button class="lang-btn" id="logoutBtn">Logout</button>
+    </div>
+
+    <!-- Schedule -->
+    <section class="card tab" id="schedule">
+      <h2 class="form-title" data-i18n="scheduleTitle">Add Lesson</h2>
+
+      <label class="form-label" data-i18n="studentName">Student Name:</label>
+      <select class="form-input" id="lesson-student"></select>
+
+      <label class="form-label" data-i18n="dayOfWeek">Day of Week:</label>
+      <select class="form-input" id="lesson-day">
+        <option value="1">Mon</option>
+        <option value="2">Tue</option>
+        <option value="3">Wed</option>
+        <option value="4">Thu</option>
+        <option value="5">Fri</option>
+        <option value="6">Sat</option>
+        <option value="0">Sun</option>
+      </select>
+
+      <label class="form-label" data-i18n="time">Time:</label>
+      <input type="time" class="form-input" id="lesson-time" />
+
+      <button class="btn-primary" id="addLessonBtn" data-i18n="addLessonBtn">Add Lesson</button>
+    </section>
+
+    <!-- Calendar -->
+    <section class="card tab active" id="calendar">
+      <h2 class="calendar-title" data-i18n="monthlyCalendar">Monthly Calendar</h2>
+
+      <div class="calendar-header">
+        <button class="btn-secondary" id="prevMonth" data-i18n="prev">← Previous</button>
+        <span class="calendar-month" id="calendarMonth"></span>
+        <button class="btn-secondary" id="nextMonth" data-i18n="next">Next →</button>
+      </div>
+
+      <div class="calendar-grid">
+        <div class="day-name">Mon</div>
+        <div class="day-name">Tue</div>
+        <div class="day-name">Wed</div>
+        <div class="day-name">Thu</div>
+        <div class="day-name">Fri</div>
+        <div class="day-name">Sat</div>
+        <div class="day-name">Sun</div>
+      </div>
+    </section>
+
+    <!-- Add Student -->
+    <section class="card tab" id="add-student">
+      <h2 class="form-title" data-i18n="addStudentTitle">Add New Student</h2>
+
+      <label class="form-label" for="student-name" data-i18n="studentName">Student Name:</label>
+      <input
+        type="text"
+        class="form-input"
+        id="student-name"
+        data-i18n-placeholder="studentPlaceholder"
+        placeholder="Enter student name"
+      />
+
+      <button class="btn-primary" id="addStudentBtn" data-i18n="addStudentBtn">Add Student</button>
+    </section>
+
+    <!-- Add Homework / Task -->
+    <section class="card tab" id="add-homework">
+      <h2 class="form-title" data-i18n="assignHomework">Assign Homework</h2>
+
+      <label class="form-label" for="hw-student-select" data-i18n="studentName">Student Name:</label>
+      <select class="form-input" id="hw-student-select"></select>
+
+      <label class="form-label" for="hw-text" data-i18n="homework">Homework:</label>
+      <textarea
+        class="form-textarea"
+        id="hw-text"
+        data-i18n-placeholder="homeworkPlaceholder"
+        placeholder="Enter homework details"
+      ></textarea>
+
+      <label class="form-label" for="hw-date" data-i18n="dueDate">Due Date:</label>
+      <input type="date" class="form-input" id="hw-date" />
+
+      <button class="btn-primary" id="addHomeworkBtn" data-i18n="addHomeworkBtn">Add Homework</button>
+    </section>
+
+    <!-- Students -->
+    <section class="card tab" id="students">
+      <h1 data-i18n="students">Students</h1>
+      <div id="studentsList"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Supabase client (must be before app.js) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

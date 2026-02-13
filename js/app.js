@@ -1,9 +1,14 @@
 // --------------------
 // supabaseClient CONFIG
 // --------------------
-const SUPABASE_URL = "https://hsrwgfzsqpaldbuevokm.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhzcndnZnpzcXBhbGRidWV2b2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNTQwODcsImV4cCI6MjA4NTkzMDA4N30.zP-LsXIz3mEzipmAU9pV6RcmIQM2SU5AkLWIqgn3Xms";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL = window.__ENV?.SUPABASE_URL;
+const SUPABASE_ANON_KEY = window.__ENV?.SUPABASE_ANON_KEY;
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
+
 
 // If env vars are missing, show a helpful message instead of a blank page
 function requireConfig() {

@@ -457,5 +457,5 @@ function renderStudents() {
 
   if (students.length === 0) {
     const p = document.createElement("p");
-    p.textContent = t("noStudents");
+    p.textContent = t("noStudents");}}
 

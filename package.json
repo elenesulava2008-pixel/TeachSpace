@@ -1,5 +1,5 @@
 {
-  "name": "student-dashboard",
+  "name": "teachspace",
   "version": "1.0.0",
   "private": true,
   "type": "commonjs",
@@ -11,3 +11,4 @@
     "express": "^4.19.2"
   }
 }
+

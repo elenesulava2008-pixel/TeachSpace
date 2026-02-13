@@ -4,7 +4,7 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ Provide config FIRST (before static), so it can't be overridden by a file
+// Provide public config to the browser (anon key is OK to expose)
 app.get("/config.js", (req, res) => {
   const url = process.env.SUPABASE_URL;
   const anon = process.env.SUPABASE_ANON_KEY;
@@ -16,13 +16,13 @@ app.get("/config.js", (req, res) => {
   `);
 });
 
-// ✅ Serve static files
+// Serve static files AFTER config.js route
 app.use(express.static(path.join(__dirname)));
 
 // Health check
 app.get("/health", (req, res) => res.json({ ok: true }));
 
-// Fallback to index.html
+// SPA-ish fallback
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });

@@ -1,25 +1,29 @@
 // --------------------
-// supabaseClient CONFIG
+// SUPABASE CONFIG (from /config.js)
 // --------------------
 const SUPABASE_URL = window.__ENV?.SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.__ENV?.SUPABASE_ANON_KEY;
 
-const supabaseClient = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
-
-
-// If env vars are missing, show a helpful message instead of a blank page
-function requireConfig() {
+function showAuthMessage(text) {
   const msg = document.getElementById("authMsg");
+  if (msg) msg.textContent = text || "";
+}
+
+function requireConfig() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    msg.textContent =
-      "Missing SUPABASE_URL / SUPABASE_ANON_KEY. Add them in Render → Environment and redeploy.";
+    showAuthMessage(
+      "Missing SUPABASE_URL / SUPABASE_ANON_KEY. Add them in Render → Environment and redeploy."
+    );
+    return false;
+  }
+  if (!window.supabase) {
+    showAuthMessage("Supabase library not loaded. Check script order in index.html.");
     return false;
   }
   return true;
 }
+
+let supabaseClient = null;
 
 // --------------------
 // TRANSLATIONS (teacher wording)
@@ -133,57 +137,61 @@ function setLanguage(lang) {
     el.placeholder = t(key);
   });
 
-  renderStudents();
+  renderStudents(); // refresh labels + buttons
 }
 
 // --------------------
 // STATE (loaded from DB)
 // --------------------
-// students: {id, user_id, name}
-// lessons:  {id, user_id, student_id, day_of_week, time}
-// tasks:    {id, user_id, student_id, text, due_date, submitted}
+// students: {id, user_id, name, created_at}
+// lessons:  {id, user_id, student_id, day_of_week, time, created_at}
+// tasks:    {id, user_id, student_id, text, due_date, submitted, created_at}
 let students = [];
 let lessons = [];
 let tasks = [];
-
 let currentDate = new Date();
 
 // --------------------
 // HELPERS
 // --------------------
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 const startOfToday = () => {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
 };
+
 const parseDate = (dateStr) => new Date(`${dateStr}T00:00:00`);
 
 function isOverdue(task) {
   if (task.submitted) return false;
   return parseDate(task.due_date) < startOfToday();
 }
+
 function isDueToday(task) {
   return parseDate(task.due_date).getTime() === startOfToday().getTime();
 }
+
 function isUpcomingOrOverdueNotSubmitted(task) {
   if (task.submitted) return false;
   return parseDate(task.due_date) >= startOfToday() || isOverdue(task);
 }
+
 function studentNameById(id) {
   return students.find(s => s.id === id)?.name ?? "Unknown";
 }
+
 function dowLabel(dow) {
   return DOW[dow] ?? "";
 }
 
 // --------------------
-// AUTH UI
+// AUTH
 // --------------------
 async function refreshAuthUI() {
   const authScreen = document.getElementById("authScreen");
   const appRoot = document.getElementById("appRoot");
-  const msg = document.getElementById("authMsg");
 
   try {
     const { data: { session }, error } = await supabaseClient.auth.getSession();
@@ -203,28 +211,26 @@ async function refreshAuthUI() {
   } catch (e) {
     authScreen.style.display = "block";
     appRoot.style.display = "none";
-    msg.textContent = e?.message || String(e);
+    showAuthMessage(e?.message || String(e));
   }
 }
 
 async function login() {
   const email = document.getElementById("authEmail").value.trim();
   const password = document.getElementById("authPassword").value;
-  const msg = document.getElementById("authMsg");
-  msg.textContent = "";
+  showAuthMessage("");
 
   const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) msg.textContent = error.message;
+  if (error) showAuthMessage(error.message);
 }
 
 async function signup() {
   const email = document.getElementById("authEmail").value.trim();
   const password = document.getElementById("authPassword").value;
-  const msg = document.getElementById("authMsg");
-  msg.textContent = "";
+  showAuthMessage("");
 
   const { error } = await supabaseClient.auth.signUp({ email, password });
-  msg.textContent = error ? error.message : "Account created. Check email if confirmation is enabled.";
+  showAuthMessage(error ? error.message : "Account created. Check email if confirmation is enabled.");
 }
 
 async function logout() {
@@ -232,33 +238,34 @@ async function logout() {
 }
 
 // --------------------
-// DB LOAD
+// DB LOAD (filter by user)
 // --------------------
 async function loadAllData() {
-  // Students
+  const { data: { user }, error: eU } = await supabaseClient.auth.getUser();
+  if (eU) throw eU;
+  if (!user) return;
+
   const { data: s, error: e1 } = await supabaseClient
     .from("students")
     .select("*")
+    .eq("user_id", user.id)
     .order("created_at", { ascending: true });
-
   if (e1) throw e1;
   students = s ?? [];
 
-  // Lessons
   const { data: l, error: e2 } = await supabaseClient
     .from("lessons")
     .select("*")
+    .eq("user_id", user.id)
     .order("time", { ascending: true });
-
   if (e2) throw e2;
   lessons = l ?? [];
 
-  // Tasks
   const { data: tsk, error: e3 } = await supabaseClient
     .from("tasks")
     .select("*")
+    .eq("user_id", user.id)
     .order("due_date", { ascending: true });
-
   if (e3) throw e3;
   tasks = tsk ?? [];
 }
@@ -281,10 +288,13 @@ async function addStudentDB(name) {
 }
 
 async function deleteStudentDB(studentId) {
+  // delete child rows first (safe even if FK cascade exists)
+  await supabaseClient.from("tasks").delete().eq("student_id", studentId);
+  await supabaseClient.from("lessons").delete().eq("student_id", studentId);
+
   const { error } = await supabaseClient.from("students").delete().eq("id", studentId);
   if (error) throw error;
 
-  // Local cleanup (DB should cascade if you set FK cascade)
   students = students.filter(s => s.id !== studentId);
   lessons = lessons.filter(l => l.student_id !== studentId);
   tasks = tasks.filter(t => t.student_id !== studentId);
@@ -330,7 +340,6 @@ async function toggleTaskSubmittedDB(taskId) {
     .eq("id", taskId);
 
   if (error) throw error;
-
   tasks[idx].submitted = newValue;
 }
 
@@ -372,7 +381,9 @@ function renderStudentDropdowns() {
 function renderCalendar() {
   const calendarGrid = document.querySelector(".calendar-grid");
   const calendarMonth = document.getElementById("calendarMonth");
+  if (!calendarGrid || !calendarMonth) return;
 
+  // remove only generated .day cells
   calendarGrid.querySelectorAll(".day").forEach(day => day.remove());
 
   const year = currentDate.getFullYear();
@@ -457,5 +468,236 @@ function renderStudents() {
 
   if (students.length === 0) {
     const p = document.createElement("p");
-    p.textContent = t("noStudents");}}
+    p.textContent = t("noStudents");
+    container.appendChild(p);
+    return;
+  }
 
+  students.forEach(student => {
+    const card = document.createElement("div");
+    card.className = "student-row";
+    card.style.flexDirection = "column";
+    card.style.alignItems = "stretch";
+    card.style.gap = "10px";
+
+    const top = document.createElement("div");
+    top.style.display = "flex";
+    top.style.justifyContent = "space-between";
+    top.style.alignItems = "center";
+
+    const nameEl = document.createElement("div");
+    nameEl.style.fontWeight = "700";
+    nameEl.textContent = student.name;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = t("remove");
+    removeBtn.addEventListener("click", async () => {
+      try {
+        await deleteStudentDB(student.id);
+        renderStudentDropdowns();
+        renderCalendar();
+        renderStudents();
+      } catch (e) {
+        alert(e?.message || String(e));
+      }
+    });
+
+    top.appendChild(nameEl);
+    top.appendChild(removeBtn);
+
+    const details = document.createElement("div");
+    details.style.fontSize = "14px";
+    details.style.lineHeight = "1.5";
+    details.style.opacity = "0.95";
+
+    // weekly lessons for that student
+    const studentLessons = lessons
+      .filter(l => l.student_id === student.id)
+      .sort((a, b) => a.day_of_week - b.day_of_week || a.time.localeCompare(b.time));
+
+    // upcoming/overdue tasks not submitted
+    const studentTasks = tasks
+      .filter(tk => tk.student_id === student.id && isUpcomingOrOverdueNotSubmitted(tk))
+      .sort((a, b) => a.due_date.localeCompare(b.due_date));
+
+    // lessons text
+    let html = `<div><b>${t("weeklyLessons")}</b><br>`;
+    if (studentLessons.length === 0) {
+      html += `${t("none")}</div>`;
+    } else {
+      studentLessons.forEach(lsn => {
+        html += `• ${dowLabel(lsn.day_of_week)} ${lsn.time}<br>`;
+      });
+      html += `</div>`;
+    }
+
+    // tasks title
+    html += `<div style="margin-top:10px;"><b>${t("upcomingTasks")}</b><br>`;
+    if (studentTasks.length === 0) {
+      html += `${t("none")}</div>`;
+      details.innerHTML = html;
+    } else {
+      html += `</div>`;
+      details.innerHTML = html;
+
+      const taskList = document.createElement("div");
+      taskList.style.display = "flex";
+      taskList.style.flexDirection = "column";
+      taskList.style.gap = "8px";
+      taskList.style.marginTop = "6px";
+
+      studentTasks.forEach(task => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+        row.style.gap = "10px";
+
+        const left = document.createElement("div");
+        const badge = isOverdue(task)
+          ? `⚠️ ${t("overdue")}`
+          : isDueToday(task)
+            ? `⏰ ${t("dueToday")}`
+            : "⬜";
+        left.textContent = `${badge} (${task.due_date}) ${task.text}`;
+
+        const btn = document.createElement("button");
+        btn.textContent = t("markSubmitted");
+        btn.addEventListener("click", async () => {
+          try {
+            await toggleTaskSubmittedDB(task.id);
+            renderCalendar();
+            renderStudents();
+          } catch (e) {
+            alert(e?.message || String(e));
+          }
+        });
+
+        row.appendChild(left);
+        row.appendChild(btn);
+        taskList.appendChild(row);
+      });
+
+      details.appendChild(taskList);
+    }
+
+    card.appendChild(top);
+    card.appendChild(details);
+    container.appendChild(card);
+  });
+}
+
+// --------------------
+// INIT + EVENTS
+// --------------------
+document.addEventListener("DOMContentLoaded", () => {
+  // create supabase client only when everything is ready
+  if (!requireConfig()) return;
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // language buttons
+  document.querySelectorAll(".lang-btn").forEach(btn => {
+    const lang = btn.dataset.lang;
+    if (lang) btn.addEventListener("click", () => setLanguage(lang));
+  });
+
+  // auth buttons
+  const loginBtn = document.getElementById("loginBtn");
+  const signupBtn = document.getElementById("signupBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  if (loginBtn) loginBtn.addEventListener("click", login);
+  if (signupBtn) signupBtn.addEventListener("click", signup);
+  if (logoutBtn) logoutBtn.addEventListener("click", logout);
+
+  // calendar nav
+  const prevBtn = document.getElementById("prevMonth");
+  const nextBtn = document.getElementById("nextMonth");
+  if (prevBtn) prevBtn.addEventListener("click", () => { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); });
+  if (nextBtn) nextBtn.addEventListener("click", () => { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); });
+
+  // add student
+  const addStudentBtn = document.getElementById("addStudentBtn");
+  if (addStudentBtn) {
+    addStudentBtn.addEventListener("click", async () => {
+      const input = document.getElementById("student-name");
+      const name = input.value.trim();
+      if (!name) return alert("Please enter a student name");
+
+      try {
+        await addStudentDB(name);
+        input.value = "";
+        renderStudentDropdowns();
+        renderCalendar();
+        renderStudents();
+      } catch (e) {
+        alert(e?.message || String(e));
+      }
+    });
+  }
+
+  // add task
+  const addTaskBtn = document.getElementById("addTaskBtn");
+  if (addTaskBtn) {
+    addTaskBtn.addEventListener("click", async () => {
+      const studentId = document.getElementById("task-student-select").value;
+      const text = document.getElementById("task-text").value.trim();
+      const dueDate = document.getElementById("task-date").value;
+
+      if (!studentId || !text || !dueDate) return alert("Please fill in all fields");
+
+      try {
+        await addTaskDB(studentId, text, dueDate);
+        document.getElementById("task-text").value = "";
+        document.getElementById("task-date").value = "";
+        renderCalendar();
+        renderStudents();
+      } catch (e) {
+        alert(e?.message || String(e));
+      }
+    });
+  }
+
+  // add lesson
+  const addLessonBtn = document.getElementById("addLessonBtn");
+  if (addLessonBtn) {
+    addLessonBtn.addEventListener("click", async () => {
+      const studentId = document.getElementById("lesson-student").value;
+      const dayOfWeek = Number(document.getElementById("lesson-day").value);
+      const time = document.getElementById("lesson-time").value;
+
+      if (!studentId || !time) return alert("Please choose student and time");
+
+      try {
+        await addLessonDB(studentId, dayOfWeek, time);
+        document.getElementById("lesson-time").value = "";
+        renderCalendar();
+        renderStudents();
+      } catch (e) {
+        alert(e?.message || String(e));
+      }
+    });
+  }
+
+  // tab switching
+  const navButtons = document.querySelectorAll(".nav-item");
+  const tabs = document.querySelectorAll(".tab");
+
+  navButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      navButtons.forEach(btn => btn.classList.remove("active"));
+      button.classList.add("active");
+
+      tabs.forEach(tab => tab.classList.remove("active"));
+      const target = document.getElementById(button.dataset.tab);
+      if (target) target.classList.add("active");
+    });
+  });
+
+  // keep UI updated on auth changes
+  supabaseClient.auth.onAuthStateChange(() => refreshAuthUI());
+
+  // initial
+  setLanguage("en");
+  refreshAuthUI();
+});
